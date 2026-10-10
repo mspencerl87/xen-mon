@@ -89,9 +89,9 @@ class Board:
         return self._panel("bargauge", title, targets, w, h, unit, desc,
                            {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False},
                             "orientation": "horizontal", "displayMode": "gradient",
-                            "showUnfilled": True, "valueMode": "color", "namePlacement": "top",
-                            "sizing": "manual", "minVizHeight": 14, "maxVizHeight": 22,
-                            "text": {"titleSize": 13, "valueSize": 16}}, d, links=links)
+                            "showUnfilled": True, "valueMode": "color", "namePlacement": "left",
+                            "sizing": "manual", "minVizHeight": 26, "maxVizHeight": 36,
+                            "text": {"titleSize": 14, "valueSize": 18}}, d, links=links)
 
     def ts(self, title, targets, w=12, h=8, unit="short", stack=False, desc="", min_=0, fill=10,
            max_=None, overrides=None, links=None):

@@ -691,13 +691,13 @@
         "displayMode": "gradient",
         "showUnfilled": true,
         "valueMode": "color",
-        "namePlacement": "top",
+        "namePlacement": "left",
         "sizing": "manual",
-        "minVizHeight": 14,
-        "maxVizHeight": 22,
+        "minVizHeight": 26,
+        "maxVizHeight": 36,
         "text": {
-          "titleSize": 13,
-          "valueSize": 16
+          "titleSize": 14,
+          "valueSize": 18
         }
       }
     },
@@ -775,13 +775,13 @@
         "displayMode": "gradient",
         "showUnfilled": true,
         "valueMode": "color",
-        "namePlacement": "top",
+        "namePlacement": "left",
         "sizing": "manual",
-        "minVizHeight": 14,
-        "maxVizHeight": 22,
+        "minVizHeight": 26,
+        "maxVizHeight": 36,
         "text": {
-          "titleSize": 13,
-          "valueSize": 16
+          "titleSize": 14,
+          "valueSize": 18
         }
       }
     },
@@ -850,13 +850,13 @@
         "displayMode": "gradient",
         "showUnfilled": true,
         "valueMode": "color",
-        "namePlacement": "top",
+        "namePlacement": "left",
         "sizing": "manual",
-        "minVizHeight": 14,
-        "maxVizHeight": 22,
+        "minVizHeight": 26,
+        "maxVizHeight": 36,
         "text": {
-          "titleSize": 13,
-          "valueSize": 16
+          "titleSize": 14,
+          "valueSize": 18
         }
       }
     },
@@ -1088,13 +1088,13 @@
         "displayMode": "gradient",
         "showUnfilled": true,
         "valueMode": "color",
-        "namePlacement": "top",
+        "namePlacement": "left",
         "sizing": "manual",
-        "minVizHeight": 14,
-        "maxVizHeight": 22,
+        "minVizHeight": 26,
+        "maxVizHeight": 36,
         "text": {
-          "titleSize": 13,
-          "valueSize": 16
+          "titleSize": 14,
+          "valueSize": 18
         }
       }
     },
