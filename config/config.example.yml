@@ -11,11 +11,12 @@ defaults:
   timeout: 20
 
 pools:
-  # Point at the pool master (a member also works: it redirects to the master).
+  # REPLACE with your pool master's management IP or hostname (the XCP-ng host,
+  # not XOA). A pool member also works: it redirects to the master.
   # One entry per pool. Every host in the pool is discovered automatically.
-  - url: https://192.168.1.10
-    password: ${XEN_POOL1_PASSWORD}
-    # name: production      # optional; defaults to the pool's name in XAPI
+  - url: https://POOL-MASTER-IP
+    password: ${XEN_POOL1_PASSWORD}   # set XEN_POOL1_PASSWORD in .env
+    # name: production      # optional; defaults to the pool name, or the master's host name
 
   # - url: https://10.0.0.20
   #   name: lab

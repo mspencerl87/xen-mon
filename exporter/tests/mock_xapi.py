@@ -1,10 +1,10 @@
-"""A tiny fake XAPI pool for demos and tests.
+"""A tiny fake XAPI pool used by the tests (and handy for local development).
 
 Serves XML-RPC on POST / and rrd_updates XML on GET /rrd_updates.
 Hosts are identified by the HTTP Host header, so point several DNS names
 (or docker network aliases) at this one server, listed in MOCK_HOSTS.
 
-    MOCK_HOSTS=mock-host-1,mock-host-2 python -m xen_exporter.mock
+    cd exporter/tests && MOCK_HOSTS=127.0.0.1,localhost MOCK_PORT=18080 python mock_xapi.py
 """
 
 from __future__ import annotations

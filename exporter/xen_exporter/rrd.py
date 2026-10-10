@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import math
 import re
 import xml.etree.ElementTree as ET
@@ -18,24 +19,45 @@ class RrdSample:
     value: float
 
 
-def parse_rrd_updates(xml_text: str) -> list[RrdSample]:
-    """Return the newest non-NaN value for every column in an rrd_updates document."""
-    root = ET.fromstring(xml_text)
+_BARE_KEY = re.compile(r'([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*:')
+
+
+def _parse_json(text: str) -> tuple[list[str], list[tuple[float, list]]]:
+    # Older XAPI versions emit JSON with unquoted keys; quote them first.
+    try:
+        doc = json.loads(text)
+    except ValueError:
+        doc = json.loads(_BARE_KEY.sub(r'\1"\2":', text))
+    legend = [str(e) for e in doc["meta"]["legend"]]
+    rows = [(float(r.get("t", 0)), list(r.get("values", []))) for r in doc.get("data", [])]
+    return legend, rows
+
+
+def _parse_xml(text: str) -> tuple[list[str], list[tuple[float, list]]]:
+    root = ET.fromstring(text)
     legend = [e.text or "" for e in root.findall("./meta/legend/entry")]
-    rows = root.findall("./data/row")
-    # Rows are not guaranteed to be ordered; sort newest first by <t>.
-    rows.sort(key=lambda r: int(float(r.findtext("t", "0"))), reverse=True)
+    rows = [(float(r.findtext("t", "0")), [v.text for v in r.findall("v")])
+            for r in root.findall("./data/row")]
+    return legend, rows
+
+
+def parse_rrd_updates(text: str) -> list[RrdSample]:
+    """Return the newest non-NaN value for every column in an rrd_updates document (XML or JSON)."""
+    text = text.lstrip("\ufeff \r\n\t")
+    legend, rows = _parse_json(text) if text.startswith("{") else _parse_xml(text)
+    # Rows are not guaranteed to be ordered; newest first.
+    rows.sort(key=lambda r: r[0], reverse=True)
 
     latest: list[float | None] = [None] * len(legend)
     remaining = len(legend)
-    for row in rows:
+    for _t, values in rows:
         if remaining == 0:
             break
-        for i, v in enumerate(row.findall("v")):
+        for i, v in enumerate(values):
             if i >= len(legend) or latest[i] is not None:
                 continue
             try:
-                val = float(v.text or "nan")
+                val = float("nan" if v is None else v)
             except ValueError:
                 continue
             if math.isnan(val) or math.isinf(val):

@@ -644,6 +644,82 @@
     },
     {
       "id": 10,
+      "type": "stat",
+      "title": "Performance data",
+      "description": "Whether the exporter can read this host's rrd_updates (CPU, load, network, disk). If FAILING, check `docker compose logs exporter`.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 4,
+        "h": 3
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "xen_host_rrd_up{pool=\"$pool\", host=\"$host\"}",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "FAILING",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "OK",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 11,
       "type": "table",
       "title": "Host info",
       "description": "",
@@ -652,9 +728,9 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 0,
+        "x": 4,
         "y": 5,
-        "w": 24,
+        "w": 20,
         "h": 3
       },
       "targets": [
@@ -720,7 +796,7 @@
       ]
     },
     {
-      "id": 11,
+      "id": 12,
       "type": "row",
       "title": "CPU & memory",
       "collapsed": false,
@@ -733,7 +809,7 @@
       "panels": []
     },
     {
-      "id": 12,
+      "id": 13,
       "type": "timeseries",
       "title": "CPU usage per core",
       "description": "",
@@ -801,7 +877,7 @@
       }
     },
     {
-      "id": 13,
+      "id": 14,
       "type": "timeseries",
       "title": "Load average",
       "description": "",
@@ -868,7 +944,7 @@
       }
     },
     {
-      "id": 14,
+      "id": 15,
       "type": "timeseries",
       "title": "Memory",
       "description": "",
@@ -969,7 +1045,7 @@
       }
     },
     {
-      "id": 15,
+      "id": 16,
       "type": "timeseries",
       "title": "dom0 memory",
       "description": "",
@@ -1047,7 +1123,7 @@
       }
     },
     {
-      "id": 16,
+      "id": 17,
       "type": "row",
       "title": "Network",
       "collapsed": false,
@@ -1060,7 +1136,7 @@
       "panels": []
     },
     {
-      "id": 17,
+      "id": 18,
       "type": "timeseries",
       "title": "PIF receive",
       "description": "",
@@ -1127,7 +1203,7 @@
       }
     },
     {
-      "id": 18,
+      "id": 19,
       "type": "timeseries",
       "title": "PIF transmit",
       "description": "",
@@ -1194,7 +1270,7 @@
       }
     },
     {
-      "id": 19,
+      "id": 20,
       "type": "row",
       "title": "Storage (as seen by this host)",
       "collapsed": false,
@@ -1207,7 +1283,7 @@
       "panels": []
     },
     {
-      "id": 20,
+      "id": 21,
       "type": "timeseries",
       "title": "SR throughput read",
       "description": "",
@@ -1274,7 +1350,7 @@
       }
     },
     {
-      "id": 21,
+      "id": 22,
       "type": "timeseries",
       "title": "SR throughput write",
       "description": "",
@@ -1341,7 +1417,7 @@
       }
     },
     {
-      "id": 22,
+      "id": 23,
       "type": "timeseries",
       "title": "SR latency",
       "description": "",
@@ -1408,7 +1484,7 @@
       }
     },
     {
-      "id": 23,
+      "id": 24,
       "type": "timeseries",
       "title": "SR IOPS read",
       "description": "",
@@ -1475,7 +1551,7 @@
       }
     },
     {
-      "id": 24,
+      "id": 25,
       "type": "timeseries",
       "title": "SR IOPS write",
       "description": "",
@@ -1542,7 +1618,7 @@
       }
     },
     {
-      "id": 25,
+      "id": 26,
       "type": "timeseries",
       "title": "SR IO wait",
       "description": "",
@@ -1609,7 +1685,7 @@
       }
     },
     {
-      "id": 26,
+      "id": 27,
       "type": "row",
       "title": "VMs on this host",
       "collapsed": false,
@@ -1622,7 +1698,7 @@
       "panels": []
     },
     {
-      "id": 27,
+      "id": 28,
       "type": "timeseries",
       "title": "VM CPU",
       "description": "",
@@ -1695,7 +1771,7 @@
       }
     },
     {
-      "id": 28,
+      "id": 29,
       "type": "timeseries",
       "title": "VM network (rx + tx)",
       "description": "",

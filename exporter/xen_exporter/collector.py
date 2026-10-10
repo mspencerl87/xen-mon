@@ -7,6 +7,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
+from urllib.parse import urlparse
 
 from prometheus_client.core import GaugeMetricFamily
 from prometheus_client.registry import Collector
@@ -46,7 +47,7 @@ class PoolPoller:
         self.session = XapiSession(cfg.url, cfg.username, cfg.password,
                                    cfg.verify_ssl, cfg.timeout)
         self.rrd_workers = rrd_workers
-        self.label = cfg.name or cfg.url
+        self.label = cfg.name or urlparse(cfg.url if "://" in cfg.url else "https://" + cfg.url).hostname or cfg.url
 
     # ------------------------------------------------------------------
     def _vms(self) -> dict:
@@ -62,10 +63,14 @@ class PoolPoller:
         s = self.session
         pools = s.call("pool.get_all_records")
         pool_ref, pool_rec = next(iter(pools.items()))
-        pool_name = self.cfg.name or pool_rec.get("name_label") or self.cfg.url
+        hosts = s.call("host.get_all_records")
+        # Unnamed pools (common for pools that were never renamed) fall back to the
+        # master's host name, then to the address we connect to.
+        pool_name = (self.cfg.name or pool_rec.get("name_label")
+                     or hosts.get(pool_rec.get("master"), {}).get("name_label")
+                     or urlparse(self.session.url).hostname or self.cfg.url)
         self.label = pool_name
 
-        hosts = s.call("host.get_all_records")
         host_metrics = s.call("host_metrics.get_all_records")
         vms = self._vms()
         srs = s.call("SR.get_all_records")
@@ -135,10 +140,21 @@ class PoolPoller:
                     or h.get("address"))
             t0 = time.monotonic()
             try:
-                return name, h["uuid"], parse_rrd_updates(s.rrd_updates(addr)), time.monotonic() - t0
+                body = s.rrd_updates(addr)
             except Exception as e:  # noqa: BLE001
                 log.warning("[%s] rrd_updates from %s (%s) failed: %s", pool_name, name, addr, e)
                 return name, h["uuid"], None, time.monotonic() - t0
+            try:
+                samples = parse_rrd_updates(body)
+            except Exception as e:  # noqa: BLE001
+                log.warning("[%s] could not parse rrd_updates from %s (%s): %s; response starts: %r",
+                            pool_name, name, addr, e, body[:300])
+                return name, h["uuid"], None, time.monotonic() - t0
+            log.debug("[%s] %s: %d RRD values", pool_name, name, len(samples))
+            if not samples:
+                log.warning("[%s] rrd_updates from %s (%s) returned no values; response starts: %r",
+                            pool_name, name, addr, body[:300])
+            return name, h["uuid"], samples, time.monotonic() - t0
 
         live_hosts = [(r, h) for r, h in hosts.items()
                       if host_metrics.get(h.get("metrics"), {}).get("live", True)]

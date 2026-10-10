@@ -5,7 +5,7 @@ import pytest
 from prometheus_client import CollectorRegistry, generate_latest
 
 from xen_exporter.collector import PoolConfig, PoolManager
-from xen_exporter.mock import serve
+from mock_xapi import serve
 from xen_exporter.rrd import map_metric, parse_rrd_updates
 
 XML = """<xport><meta><start>0</start><step>5</step><end>10</end><rows>2</rows><columns>3</columns>
@@ -83,3 +83,23 @@ def test_session_expiry_relogin(mock_pool):
     mgr.pollers[0].session.session_id = "OpaqueRef:stale"
     mgr.poll_once(0)
     assert 'xen_up{pool="demo-pool"} 1.0' in _scrape(mgr)
+
+
+def test_parse_json_with_bare_keys():
+    doc = ('{meta: {start: 0, step: 5, end: 10, rows: 1, columns: 2, '
+           'legend: ["AVERAGE:host:h1:cpu_avg", "AVERAGE:host:h1:loadavg"]}, '
+           'data: [{t: 10, values: [0.25, NaN]}, {t: 5, values: [0.1, 1.5]}]}')
+    got = {s.name: s.value for s in parse_rrd_updates(doc)}
+    assert got == {"cpu_avg": 0.25, "loadavg": 1.5}
+
+
+def test_unnamed_pool_uses_master_name():
+    srv = serve(0, ["127.0.0.1"], name="")
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        mgr = PoolManager([PoolConfig(url=f"http://127.0.0.1:{srv.server_address[1]}",
+                                      username="root", password="demo")])
+        mgr.poll_once(0)
+        assert 'xen_up{pool="xcp-host-1"} 1.0' in _scrape(mgr)
+    finally:
+        srv.shutdown()

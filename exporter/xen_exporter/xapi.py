@@ -151,5 +151,6 @@ class XapiSession:
             params["session_id"] = self.session_id
             r = requests.get(f"{scheme}://{netloc}/rrd_updates", params=params,
                              verify=self.verify_ssl, timeout=self.timeout)
-        r.raise_for_status()
+        if r.status_code != 200:
+            raise RuntimeError(f"HTTP {r.status_code} from {netloc}/rrd_updates: {r.text[:200]!r}")
         return r.text

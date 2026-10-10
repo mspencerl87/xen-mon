@@ -12,34 +12,83 @@ All-in-one monitoring for **XCP-ng** (and Citrix XenServer) pools: deploy one Do
 - **Works without Xen Orchestra.** It talks to XAPI directly.
 - **Batteries included.** Pre-provisioned Grafana dashboards (Overview, Host, VM) and Prometheus alert rules.
 
-## Quick start
+## Deploy
 
-Requirements: a Linux box or VM with Docker Engine and Compose v2.24+, and HTTPS (443) access to the management IP of every host in your pools.
+You need a Linux machine or VM with Docker Engine and the Compose plugin (v2.24+). It must be able to reach the management IP of **every** XCP-ng host in your pools on HTTPS (443).
+
+### 1. Get the files
 
 ```bash
 git clone https://github.com/mspencerl87/xen-mon.git
 cd xen-mon
-./setup.sh            # asks for pool address/credentials, writes config, starts the stack
 ```
 
-Then open `http://<docker-host>:3000` and log in with `admin` and the password you chose.
-
-### Manual setup
+### 2. Point it at your pools
 
 ```bash
-cp config/config.example.yml config/config.yml   # add your pools
-cp .env.example .env                             # passwords, Grafana admin, ports
+cp config/config.example.yml config/config.yml
+cp .env.example .env
+```
+
+Edit **`config/config.yml`** and replace `POOL-MASTER-IP` with your pool master's management IP. Use the XCP-ng host itself, not XOA. Add one `- url:` entry per pool:
+
+```yaml
+pools:
+  - url: https://192.168.10.10
+    password: ${XEN_POOL1_PASSWORD}
+  # - url: https://10.0.0.20
+  #   password: ${XEN_POOL2_PASSWORD}
+```
+
+Edit **`.env`** and set the pool password(s) and a Grafana admin password:
+
+```bash
+XEN_POOL1_PASSWORD=your-root-password
+GRAFANA_ADMIN_PASSWORD=something-strong
+```
+
+Instead of steps 2 and 3, you can run `./setup.sh`, which asks these questions and writes both files for you.
+
+### 3. Start it
+
+```bash
 docker compose up -d
-docker compose logs -f exporter                  # should show "polled N samples ... (up=1)"
+docker compose logs -f exporter    # wait for: polled N samples ... (up=1)
 ```
 
-### Try it with no pool (demo)
+Open `http://<docker-host>:3000` and log in as `admin`. The **XCP-ng Overview** dashboard is the home page.
+
+### Changing pools / starting fresh
+
+The exporter reads `config/config.yml` only at startup. After you edit it, restart the exporter:
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d --build
+docker compose up -d --force-recreate exporter
 ```
 
-This starts a fake two-host pool with generated data so you can explore the dashboards.
+Old series, such as a renamed pool or a test pool, stay in Prometheus until they age out (`PROMETHEUS_RETENTION`, 30 days by default) and keep appearing in the Pool picker. To wipe all stored metrics and Grafana state and start clean:
+
+```bash
+docker compose down -v      # -v deletes the prometheus-data and grafana-data volumes
+docker compose up -d
+```
+
+### Updating
+
+```bash
+git pull
+docker compose pull
+docker compose up -d --build
+```
+
+### Troubleshooting
+
+| Symptom | Cause / fix |
+|---|---|
+| Every panel says *No data* and *Pools reachable* is 0 | The exporter isn't running. Check `docker compose logs exporter`. "No pools configured" means `config/config.yml` is missing. |
+| *Pools down* is 1 | The exporter can't log in. Check the IP, username and password, and whether the Docker host can reach the master on 443. |
+| A host shows Memory/VMs but CPU and Load are *No data*, and the Host page shows *Performance data: FAILING* | The exporter can reach the master but not that host's `/rrd_updates`. The log line `rrd_updates from <host> failed` gives the reason. Fix routing, or map the host to a reachable address with `host_overrides`. |
+| The Pool picker shows a URL instead of a name | The pool has no name in XCP-ng. Set one in XO, or set `name:` in `config.yml`. |
 
 ## Configuration
 
@@ -108,8 +157,8 @@ Any other RRD data source is exported as `xen_host_<name>` or `xen_vm_<name>`, s
 ```bash
 cd exporter
 pip install -r requirements.txt pytest
-python -m pytest -q tests                     # unit tests + end-to-end against the fake pool
-MOCK_HOSTS=127.0.0.1,localhost MOCK_PORT=18080 python -m xen_exporter.mock &
+python -m pytest -q tests                     # unit tests + end-to-end against a fake pool
+(cd tests && MOCK_HOSTS=127.0.0.1,localhost MOCK_PORT=18080 python mock_xapi.py &)   # fake pool
 XEN_CONFIG=/none XEN_URL=http://127.0.0.1:18080 XEN_PASSWORD=demo python -m xen_exporter
 curl -s localhost:9890/metrics | grep ^xen_ | head
 ```

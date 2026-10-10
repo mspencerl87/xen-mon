@@ -250,7 +250,12 @@ def host() -> Board:
     b.stat("Load avg", f"xen_host_loadavg{{{H}}}", w=3, decimals=2)
     b.stat("Running VMs", f'count(xen_vm_running{{{H}, is_dom0="false"}} == 1) or vector(0)', w=3)
     b.stat("pCPUs", f"xen_host_cpu_count{{{H}}}", w=3)
-    b.table("Host info", [(f"xen_host_info{{{H}}}", "")], w=24, h=3, transformations=[
+    b.stat("Performance data", f"xen_host_rrd_up{{{H}}}", w=4, h=3, color_mode="background",
+           desc="Whether the exporter can read this host's rrd_updates (CPU, load, network, disk). "
+                "If FAILING, check `docker compose logs exporter`.",
+           mappings=[{"type": "value", "options": {"0": {"text": "FAILING", "color": "red"},
+                                                   "1": {"text": "OK", "color": "green"}}}])
+    b.table("Host info", [(f"xen_host_info{{{H}}}", "")], w=20, h=3, transformations=[
         {"id": "organize", "options": {
             "excludeByName": {"Time": True, "Value": True, "__name__": True, "instance": True,
                               "job": True, "pool": True},
