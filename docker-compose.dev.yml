@@ -1,0 +1,17 @@
+# Build all three images from this checkout instead of pulling them, and use
+# config/config.yml if present. For development or for testing local changes:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+services:
+  exporter:
+    image: xen-mon-exporter:dev
+    build: ./exporter
+    volumes:
+      - ./config:/config:ro
+
+  prometheus:
+    image: xen-mon-prometheus:dev
+    build: ./prometheus
+
+  grafana:
+    image: xen-mon-grafana:dev
+    build: ./grafana

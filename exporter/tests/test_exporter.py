@@ -120,3 +120,45 @@ def test_clock_skew_is_compensated(monkeypatch):
         assert "xen_pool_clock_skew_seconds" in text
     finally:
         srv.shutdown()
+
+
+def test_numbered_env_pools(monkeypatch, tmp_path):
+    from xen_exporter.config import load
+    for k in list(__import__("os").environ):
+        if k.startswith("XEN_"):
+            monkeypatch.delenv(k)
+    monkeypatch.setenv("XEN_POOL1_URL", "192.168.10.10")
+    monkeypatch.setenv("XEN_POOL1_PASSWORD", "a")
+    monkeypatch.setenv("XEN_POOL2_URL", "https://10.0.0.20")
+    monkeypatch.setenv("XEN_POOL2_USERNAME", "monitor")
+    monkeypatch.setenv("XEN_POOL2_PASSWORD", "b")
+    monkeypatch.setenv("XEN_POOL2_NAME", "lab")
+    monkeypatch.setenv("XEN_POOL2_VERIFY_SSL", "true")
+    monkeypatch.setenv("XEN_POOL3_PASSWORD", "orphan")  # no URL: ignored
+    cfg = load(str(tmp_path / "missing.yml"))
+    assert [(p.url, p.username, p.password, p.name, p.verify_ssl) for p in cfg.pools] == [
+        ("192.168.10.10", "root", "a", None, False),
+        ("https://10.0.0.20", "monitor", "b", "lab", True),
+    ]
+
+
+def test_yaml_and_env_pools_dedupe(monkeypatch, tmp_path):
+    from xen_exporter.config import load
+    for k in list(__import__("os").environ):
+        if k.startswith("XEN_"):
+            monkeypatch.delenv(k)
+    cfgfile = tmp_path / "config.yml"
+    cfgfile.write_text("pools:\n  - url: https://192.168.10.10\n    password: ${XEN_POOL1_PASSWORD}\n")
+    monkeypatch.setenv("XEN_POOL1_URL", "192.168.10.10")
+    monkeypatch.setenv("XEN_POOL1_PASSWORD", "a")
+    cfg = load(str(cfgfile))
+    assert len(cfg.pools) == 1 and cfg.pools[0].password == "a"
+
+
+def test_no_pools_is_a_clear_error(monkeypatch, tmp_path):
+    from xen_exporter.config import load
+    for k in list(__import__("os").environ):
+        if k.startswith("XEN_"):
+            monkeypatch.delenv(k)
+    with pytest.raises(SystemExit, match="XEN_POOL1_URL"):
+        load(str(tmp_path / "missing.yml"))

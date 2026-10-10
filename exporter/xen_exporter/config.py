@@ -10,6 +10,7 @@ import yaml
 
 from .collector import PoolConfig
 
+_POOL_ENV = re.compile(r"^XEN_POOL(\d+)_(URL|USERNAME|PASSWORD|PASSWORD_FILE|NAME|VERIFY_SSL|TIMEOUT)$")
 _ENV = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}")
 
 
@@ -21,6 +22,11 @@ def _expand(value):
     if isinstance(value, dict):
         return {k: _expand(v) for k, v in value.items()}
     return value
+
+
+def _norm_url(url: str) -> str:
+    url = url.strip().rstrip("/")
+    return url if "://" in url else "https://" + url
 
 
 def _bool(v, default=False) -> bool:
@@ -72,9 +78,28 @@ def load(path: str | None) -> Config:
     defaults = data.get("defaults") or {}
     cfg.pools = [_pool_from_dict(p, defaults) for p in (data.get("pools") or [])]
 
-    # Quick-start: a single pool purely from environment variables.
+    # Numbered pools from the environment: XEN_POOL1_URL, XEN_POOL1_PASSWORD, ...
+    # (this is how the docker-compose-only deployment is configured).
+    numbered: dict[int, dict] = {}
+    for key, value in os.environ.items():
+        m = _POOL_ENV.match(key)
+        if m and value != "":
+            numbered.setdefault(int(m.group(1)), {})[m.group(2).lower()] = value
+    known = {_norm_url(p.url) for p in cfg.pools}
+    for n in sorted(numbered):
+        d = numbered[n]
+        if "url" not in d:
+            continue  # e.g. only XEN_POOL1_PASSWORD set, used by config.yml via ${...}
+        if _norm_url(d["url"]) in known:
+            continue
+        env_defaults = {"username": os.environ.get("XEN_USERNAME", "root"),
+                        "verify_ssl": os.environ.get("XEN_VERIFY_SSL"), **defaults}
+        cfg.pools.append(_pool_from_dict(d, env_defaults))
+        known.add(_norm_url(d["url"]))
+
+    # Legacy quick-start: XEN_URL (comma-separated) sharing one username/password.
     if not cfg.pools and os.environ.get("XEN_URL"):
-        for i, url in enumerate(u.strip() for u in os.environ["XEN_URL"].split(",") if u.strip()):
+        for url in (u.strip() for u in os.environ["XEN_URL"].split(",") if u.strip()):
             cfg.pools.append(_pool_from_dict({
                 "url": url,
                 "username": os.environ.get("XEN_USERNAME", "root"),
@@ -82,7 +107,12 @@ def load(path: str | None) -> Config:
                 "verify_ssl": os.environ.get("XEN_VERIFY_SSL"),
             }, {}))
 
+    for p in cfg.pools:
+        if "POOL-MASTER-IP" in p.url:
+            raise SystemExit("Replace POOL-MASTER-IP in .env (XEN_POOL1_URL) with your pool master's "
+                             "management IP or hostname.")
+
     if not cfg.pools:
-        raise SystemExit("No pools configured. Create config/config.yml (see config/config.example.yml) "
-                         "or set XEN_URL / XEN_USERNAME / XEN_PASSWORD.")
+        raise SystemExit("No pools configured. Set XEN_POOL1_URL and XEN_POOL1_PASSWORD in .env "
+                         "(see .env.example), or mount a config.yml at /config/config.yml.")
     return cfg

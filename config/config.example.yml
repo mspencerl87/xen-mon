@@ -1,6 +1,8 @@
-# xen-mon exporter configuration
-# Copy to config/config.yml and edit. ${VAR} and ${VAR:-default} are expanded from the
-# environment (e.g. from .env), so you can keep passwords out of this file.
+# OPTIONAL: advanced exporter configuration as a file.
+# Most installs only need .env (see .env.example). Use this file for
+# host_overrides, password_file, or many pools; mount it at /config/config.yml
+# (docker-compose.dev.yml does this). ${VAR} and ${VAR:-default} are
+# expanded from the environment.
 
 interval: 30          # seconds between polls of each pool
 

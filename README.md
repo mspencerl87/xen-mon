@@ -18,56 +18,45 @@ All-in-one monitoring for **XCP-ng** (and Citrix XenServer) pools: deploy one Do
 
 ## Deploy
 
-You need a Linux machine or VM with Docker Engine and the Compose plugin (v2.24+). It must be able to reach the management IP of **every** XCP-ng host in your pools on HTTPS (443).
+You need a Linux machine or VM with Docker Engine and the Compose plugin (v2.24+). It must be able to reach the management IP of **every** XCP-ng host in your pools on HTTPS (443). You don't need to clone the repo: all three containers are prebuilt images.
 
-### 1. Get the files
+### 1. Download two files
 
 ```bash
-git clone https://github.com/mspencerl87/xen-mon.git
-cd xen-mon
+mkdir xen-mon && cd xen-mon
+curl -LO https://raw.githubusercontent.com/mspencerl87/xen-mon/main/docker-compose.yml
+curl -L -o .env https://raw.githubusercontent.com/mspencerl87/xen-mon/main/.env.example
 ```
 
 ### 2. Point it at your pools
 
-```bash
-cp config/config.example.yml config/config.yml
-cp .env.example .env
-```
-
-Edit **`config/config.yml`** and replace `POOL-MASTER-IP` with your pool master's management IP. Use the XCP-ng host itself, not XOA. Add one `- url:` entry per pool:
-
-```yaml
-pools:
-  - url: https://192.168.10.10
-    password: ${XEN_POOL1_PASSWORD}
-  # - url: https://10.0.0.20
-  #   password: ${XEN_POOL2_PASSWORD}
-```
-
-Edit **`.env`** and set the pool password(s) and a Grafana admin password:
+Edit `.env` and set your pool master's address (the XCP-ng host itself, not XOA) and credentials:
 
 ```bash
+XEN_POOL1_URL=https://192.168.10.10
+XEN_POOL1_USERNAME=root
 XEN_POOL1_PASSWORD=your-root-password
+
 GRAFANA_ADMIN_PASSWORD=something-strong
 ```
 
-Instead of steps 2 and 3, you can run `./setup.sh`, which asks these questions and writes both files for you.
+For more pools, add `XEN_POOL2_URL`, `XEN_POOL2_PASSWORD` and so on. Every host in each pool is discovered automatically. If you'd rather answer prompts, `./setup.sh` writes `.env` for you; it's in the repo, and it fetches `docker-compose.yml` if it's missing.
 
 ### 3. Start it
 
 ```bash
 docker compose up -d
-docker compose logs -f exporter    # wait for: polled N samples ... (up=1)
+docker compose exec exporter python -m xen_exporter.diagnose   # checks every pool and host
 ```
 
 Open `http://<docker-host>:3000` and log in as `admin`. The **XCP-ng Overview** dashboard is the home page.
 
 ### Changing pools / starting fresh
 
-The exporter reads `config/config.yml` only at startup. After you edit it, restart the exporter:
+After editing `.env`, apply the change:
 
 ```bash
-docker compose up -d --force-recreate exporter
+docker compose up -d
 ```
 
 Old series, such as a renamed pool or a test pool, stay in Prometheus until they age out (`PROMETHEUS_RETENTION`, 30 days by default) and keep appearing in the Pool picker. To wipe all stored metrics and Grafana state and start clean:
@@ -80,10 +69,11 @@ docker compose up -d
 ### Updating
 
 ```bash
-git pull
 docker compose pull
-docker compose up -d --build
+docker compose up -d
 ```
+
+Set `XEN_MON_VERSION` in `.env` to a release such as `0.3.0` to pin a version instead of following `latest`.
 
 ### Troubleshooting
 
@@ -95,44 +85,61 @@ docker compose exec exporter python -m xen_exporter.diagnose
 
 | Symptom | Cause / fix |
 |---|---|
-| Every panel says *No data* and *Pools reachable* is 0 | The exporter isn't running. Check `docker compose logs exporter`. "No pools configured" means `config/config.yml` is missing. |
-| *Pools down* is 1 | The exporter can't log in. Check the IP, username and password, and whether the Docker host can reach the master on 443. |
-| Memory, VM counts and SR usage work, but CPU, network, disk and SR I/O are *No data* everywhere | Often the exporter's clock is ahead of the hosts' clocks, so it asks them for data "from the future" (common on WSL2 or VMs after sleep). Since v0.2 this is compensated automatically and logged as `clock skew`. Fix NTP on both sides anyway. |
-| A host shows Memory/VMs but CPU and Load are *No data*, and the Host page shows *Performance data: FAILING* | The exporter can reach the master but not that host's `/rrd_updates`. The log line `rrd_updates from <host> failed` gives the reason. Fix routing, or map the host to a reachable address with `host_overrides`. |
-| The Pool picker shows a URL instead of a name | The pool has no name in XCP-ng. Set one in XO, or set `name:` in `config.yml`. |
+| Every panel says *No data* and *Pools reachable* is 0 | The exporter isn't running. Check `docker compose logs exporter`: "No pools configured" or "Replace POOL-MASTER-IP" means `.env` isn't filled in. |
+| *Pools down* is 1 | The exporter can't log in. Check the URL, username and password, and whether the Docker host can reach the master on 443. |
+| Memory, VM counts and SR usage work, but CPU, network, disk and SR I/O are *No data* everywhere | Run the diagnose command above; it shows what each host returned. Clock skew between the Docker host and the pool is compensated automatically and logged as `clock skew`. |
+| A host shows Memory/VMs but CPU and Load are *No data*, and the Host page shows *Performance data: FAILING* | The exporter can reach the master but not that host's `/rrd_updates`. Fix routing, or map the host to a reachable address with `host_overrides` (see [Advanced configuration](#advanced-configuration-file)). |
+| The Pool picker shows the master's host name | The pool has no name in XCP-ng. Set one in XO, or set `XEN_POOL1_NAME` in `.env`. |
+| `pull access denied` for a `ghcr.io` image | The image isn't public yet. Set `XEN_MON_REGISTRY=docker.io/mspencerl87` to pull from Docker Hub instead. |
 
 ## Configuration
 
-`config/config.yml`:
+All settings live in `.env`:
 
-```yaml
-interval: 30
-defaults:
-  username: root
-  verify_ssl: false
-pools:
-  - url: https://192.168.1.10          # pool master (a member works too: it redirects)
-    password: ${XEN_POOL1_PASSWORD}    # expanded from .env
-  - url: https://10.0.0.20
-    name: lab                          # optional display name (defaults to pool name)
-    password_file: /run/secrets/lab
-    host_overrides:                    # if hosts aren't reachable at their XAPI address
-      xcp-lab-02: 10.0.0.22
-```
-
-For a single pool you can skip the file and set `XEN_URL`, `XEN_USERNAME` and `XEN_PASSWORD` in `.env` (`XEN_URL` accepts a comma-separated list).
-
-| `.env` variable | Default | Purpose |
+| Variable | Default | Purpose |
 |---|---|---|
-| `GRAFANA_ADMIN_PASSWORD` | `admin` | Grafana admin password |
+| `XEN_POOLn_URL` | none | Pool master address for pool *n* (1, 2, 3...). A pool member also works: it redirects to the master. |
+| `XEN_POOLn_USERNAME` | `root` | Login for pool *n* |
+| `XEN_POOLn_PASSWORD` | none | Password for pool *n* |
+| `XEN_POOLn_NAME` | pool name | Display name for pool *n* |
+| `XEN_POOLn_VERIFY_SSL` | `false` | Verify the host TLS certificates (XCP-ng ships self-signed ones) |
+| `XEN_INTERVAL` | `30` | Seconds between polls |
+| `GRAFANA_ADMIN_USER` / `GRAFANA_ADMIN_PASSWORD` | `admin` / `admin` | Grafana login |
 | `GRAFANA_PORT` | `3000` | Grafana port |
 | `PROMETHEUS_BIND` / `PROMETHEUS_PORT` | `127.0.0.1` / `9090` | Prometheus UI (local only by default) |
 | `PROMETHEUS_RETENTION` | `30d` | How long metrics are kept |
-| `XEN_MON_VERSION` | `latest` | Exporter image tag |
+| `XEN_MON_VERSION` | `latest` | Image tag for all three images |
+| `XEN_MON_REGISTRY` | `ghcr.io/mspencerl87` | Where to pull images from (`docker.io/mspencerl87` for Docker Hub) |
+
+### Advanced configuration file
+
+For `host_overrides` (hosts reachable at a different address than XAPI reports), `password_file`, or shared defaults across many pools, mount a YAML file. Create `docker-compose.override.yml` next to `docker-compose.yml`:
+
+```yaml
+services:
+  exporter:
+    volumes:
+      - ./config.yml:/config/config.yml:ro
+```
+
+```yaml
+# config.yml (see config/config.example.yml)
+pools:
+  - url: https://10.0.0.20
+    password: ${XEN_POOL2_PASSWORD}     # expanded from .env
+    host_overrides:
+      xcp-lab-02: 10.0.0.22
+```
+
+Pools from the file and from `.env` are combined. The same URL listed in both is only polled once.
+
+### Custom alert rules or dashboards
+
+The Prometheus and Grafana images include xen-mon's rules and dashboards. To change the rules, mount your own: add `- ./rules:/etc/prometheus/rules:ro` under `prometheus.volumes` in `docker-compose.override.yml`. Dashboards can be edited in Grafana and saved under a new name.
 
 ### Credentials
 
-XAPI only offers role-based access for external (AD/LDAP) users. If your pool uses external authentication, create a user with the **read-only** role for xen-mon. Otherwise use `root` and keep `.env` readable only by you (`setup.sh` sets mode 600).
+XAPI only offers role-based access for external (AD/LDAP) users. If your pool uses external authentication, create a user with the **read-only** role for xen-mon. Otherwise use `root`, and keep `.env` readable only by you (`chmod 600 .env`; `setup.sh` does this).
 
 ### Network
 
@@ -165,7 +172,7 @@ Any other RRD data source is exported as `xen_host_<name>` or `xen_vm_<name>`, s
 
 ### Using only the dashboards
 
-Already running Prometheus? Run just the exporter, add a scrape job for `<exporter>:9890`, and import the dashboards from [`grafana/grafana.com/`](grafana/grafana.com). Those copies ask which Prometheus datasource to use when you import them.
+Already running Prometheus and Grafana? Run just the exporter image (`ghcr.io/mspencerl87/xen-mon-exporter`, configured with the same `XEN_POOLn_*` variables), add a scrape job for `<exporter>:9890`, and import the dashboards from grafana.com or from [`grafana/grafana.com/`](grafana/grafana.com). Those copies ask which Prometheus datasource to use when you import them.
 
 ## Development
 
@@ -174,11 +181,17 @@ cd exporter
 pip install -r requirements.txt pytest
 python -m pytest -q tests                     # unit tests + end-to-end against a fake pool
 (cd tests && MOCK_HOSTS=127.0.0.1,localhost MOCK_PORT=18080 python mock_xapi.py &)   # fake pool
-XEN_CONFIG=/none XEN_URL=http://127.0.0.1:18080 XEN_PASSWORD=demo python -m xen_exporter
+XEN_CONFIG=/none XEN_POOL1_URL=http://127.0.0.1:18080 XEN_POOL1_PASSWORD=demo python -m xen_exporter
 curl -s localhost:9890/metrics | grep ^xen_ | head
 ```
 
-The dashboards are generated by `tools/gen_dashboards.py`. Edit that file and re-run it rather than editing the JSON by hand. CI checks that the generated JSON is current, and pushes multi-arch exporter images to `ghcr.io/mspencerl87/xen-mon-exporter`.
+To run the whole stack from your checkout (building all three images locally and mounting `config/`):
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+```
+
+The dashboards are generated by `tools/gen_dashboards.py`. Edit that file and re-run it rather than editing the JSON by hand. CI checks that the generated JSON is current, then builds multi-arch (amd64 and arm64) images of the exporter, Prometheus and Grafana, and publishes them to GHCR and Docker Hub. See [docs/publishing.md](docs/publishing.md).
 
 ## Roadmap
 

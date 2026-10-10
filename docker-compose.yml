@@ -1,25 +1,27 @@
 # xen-mon: all-in-one monitoring for XCP-ng / XenServer pools
-#   1. cp config/config.example.yml config/config.yml  -> set your pool master IP(s)
-#   2. cp .env.example .env                            -> set passwords
-#   3. docker compose up -d
-#   4. open http://<this-host>:3000
-# See README.md for details.
+#
+# This file is all you need. In an empty folder:
+#   curl -LO https://raw.githubusercontent.com/mspencerl87/xen-mon/main/docker-compose.yml
+#   curl -L -o .env https://raw.githubusercontent.com/mspencerl87/xen-mon/main/.env.example
+#   nano .env            # set XEN_POOL1_URL / XEN_POOL1_PASSWORD and a Grafana password
+#   docker compose up -d
+# Then open http://<this-host>:3000
+#
+# Images are published to GitHub (ghcr.io) and Docker Hub. To pull from
+# Docker Hub instead, set XEN_MON_REGISTRY=docker.io/mspencerl87 in .env.
 
 services:
   exporter:
-    image: ghcr.io/mspencerl87/xen-mon-exporter:${XEN_MON_VERSION:-latest}
-    build: ./exporter
+    image: ${XEN_MON_REGISTRY:-ghcr.io/mspencerl87}/xen-mon-exporter:${XEN_MON_VERSION:-latest}
     restart: unless-stopped
     env_file:
       - path: .env
         required: false
-    volumes:
-      - ./config:/config:ro
     expose:
       - "9890"
 
   prometheus:
-    image: prom/prometheus:v3.1.0
+    image: ${XEN_MON_REGISTRY:-ghcr.io/mspencerl87}/xen-mon-prometheus:${XEN_MON_VERSION:-latest}
     restart: unless-stopped
     command:
       - --config.file=/etc/prometheus/prometheus.yml
@@ -27,7 +29,6 @@ services:
       - --storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-30d}
       - --web.enable-lifecycle
     volumes:
-      - ./prometheus:/etc/prometheus:ro
       - prometheus-data:/prometheus
     ports:
       - "${PROMETHEUS_BIND:-127.0.0.1}:${PROMETHEUS_PORT:-9090}:9090"
@@ -35,17 +36,12 @@ services:
       - exporter
 
   grafana:
-    image: grafana/grafana:11.4.0
+    image: ${XEN_MON_REGISTRY:-ghcr.io/mspencerl87}/xen-mon-grafana:${XEN_MON_VERSION:-latest}
     restart: unless-stopped
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
-      GF_USERS_ALLOW_SIGN_UP: "false"
-      GF_ANALYTICS_REPORTING_ENABLED: "false"
-      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/xen-overview.json
     volumes:
-      - ./grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
     ports:
       - "${GRAFANA_PORT:-3000}:3000"
