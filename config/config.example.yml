@@ -1,0 +1,27 @@
+# xen-mon exporter configuration
+# Copy to config/config.yml and edit. ${VAR} and ${VAR:-default} are expanded from the
+# environment (e.g. from .env), so you can keep passwords out of this file.
+
+interval: 30          # seconds between polls of each pool
+
+# Settings applied to every pool unless overridden below
+defaults:
+  username: root
+  verify_ssl: false   # XCP-ng ships self-signed certs; set true if you installed real ones
+  timeout: 20
+
+pools:
+  # Point at the pool master (a member also works: it redirects to the master).
+  # One entry per pool. Every host in the pool is discovered automatically.
+  - url: https://192.168.1.10
+    password: ${XEN_POOL1_PASSWORD}
+    # name: production      # optional; defaults to the pool's name in XAPI
+
+  # - url: https://10.0.0.20
+  #   name: lab
+  #   username: monitoring
+  #   password_file: /run/secrets/lab_password
+  #   # If the exporter can't reach hosts at the address XAPI reports
+  #   # (NAT, separate mgmt network...), map host name or UUID -> address:
+  #   host_overrides:
+  #     xcp-lab-02: 10.0.0.22

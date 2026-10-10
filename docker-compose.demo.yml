@@ -1,0 +1,22 @@
+# Try xen-mon without a real pool: a fake 2-host XCP-ng pool with demo data.
+#   docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d
+services:
+  mock-pool:
+    build: ./exporter
+    entrypoint: ["python", "-m", "xen_exporter.mock"]
+    environment:
+      MOCK_HOSTS: mock-host-1,mock-host-2
+      MOCK_PORT: "8080"
+      MOCK_PASSWORD: demo
+    networks:
+      default:
+        aliases: [mock-host-1, mock-host-2]
+
+  exporter:
+    environment:
+      XEN_CONFIG: /nonexistent
+      XEN_URL: http://mock-host-1:8080
+      XEN_USERNAME: root
+      XEN_PASSWORD: demo
+    depends_on:
+      - mock-pool

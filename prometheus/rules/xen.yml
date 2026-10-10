@@ -1,0 +1,81 @@
+groups:
+  - name: xen-mon
+    rules:
+      - alert: XenPoolUnreachable
+        expr: xen_up == 0
+        for: 3m
+        labels: {severity: critical}
+        annotations:
+          summary: "Pool {{ $labels.pool }} cannot be polled"
+          description: "The exporter has failed to log in to / query pool {{ $labels.pool }} for 3 minutes."
+
+      - alert: XenExporterDown
+        expr: up{job="xen"} == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations:
+          summary: "xen-mon exporter is down"
+
+      - alert: XenHostNotLive
+        expr: xen_host_live == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations:
+          summary: "Host {{ $labels.host }} ({{ $labels.pool }}) is not live"
+
+      - alert: XenHostDisabled
+        expr: xen_host_enabled == 0
+        for: 30m
+        labels: {severity: warning}
+        annotations:
+          summary: "Host {{ $labels.host }} ({{ $labels.pool }}) has been disabled for 30m (maintenance?)"
+
+      - alert: XenHostMetricsMissing
+        expr: xen_host_rrd_up == 0
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "No RRD metrics from host {{ $labels.host }} ({{ $labels.pool }})"
+          description: "The exporter can reach the pool master but not this host's rrd_updates endpoint. Check routing/firewall or set host_overrides."
+
+      - alert: XenHostHighCPU
+        expr: xen_host_cpu_avg > 0.9
+        for: 15m
+        labels: {severity: warning}
+        annotations:
+          summary: "Host {{ $labels.host }} CPU > 90% for 15m ({{ $value | humanizePercentage }})"
+
+      - alert: XenHostLowMemory
+        expr: xen_host_memory_free_bytes / xen_host_memory_total_bytes < 0.05
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "Host {{ $labels.host }} has < 5% free memory"
+
+      - alert: XenSRAlmostFull
+        expr: (xen_sr_used_bytes / (xen_sr_size_bytes > 0)) > 0.85
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "SR {{ $labels.sr }} ({{ $labels.pool }}) is {{ $value | humanizePercentage }} full"
+
+      - alert: XenSRCritical
+        expr: (xen_sr_used_bytes / (xen_sr_size_bytes > 0)) > 0.95
+        for: 5m
+        labels: {severity: critical}
+        annotations:
+          summary: "SR {{ $labels.sr }} ({{ $labels.pool }}) is {{ $value | humanizePercentage }} full"
+
+      - alert: XenSRHighLatency
+        expr: max by (pool, sr) (xen_host_sr_latency) > 50
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "SR {{ $labels.sr }} latency > 50 ms for 10m"
+
+      - alert: XenDom0HighMemory
+        expr: (xen_vm_memory{is_dom0="true"} - xen_vm_memory_internal_free{is_dom0="true"} * 1024) / xen_vm_memory{is_dom0="true"} > 0.9
+        for: 15m
+        labels: {severity: warning}
+        annotations:
+          summary: "dom0 on {{ $labels.host }} is using > 90% of its memory"
