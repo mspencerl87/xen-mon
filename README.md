@@ -7,6 +7,15 @@ All-in-one monitoring for **XCP-ng** (and Citrix XenServer) pools: deploy one Do
  (master + every host)        (:9890 /metrics)      (alert rules)   (3 dashboards)
 ```
 
+![XCP-ng Overview dashboard](docs/screenshots/overview.png)
+
+<details>
+<summary>VM dashboard</summary>
+
+![XCP-ng VM dashboard](docs/screenshots/vm.png)
+
+</details>
+
 - **Agentless.** Nothing is installed on dom0. The exporter logs in to each pool master over the API, discovers every host, VM and SR, and reads the RRD metrics the hosts already record.
 - **Multi-pool.** Monitor any number of pools from one stack.
 - **Works without Xen Orchestra.** It talks to XAPI directly.
