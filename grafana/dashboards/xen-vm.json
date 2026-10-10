@@ -64,6 +64,7 @@
   "annotations": {
     "list": []
   },
+  "description": "XCP-ng / XenServer monitoring by xen-mon - https://github.com/mspencerl87/xen-mon",
   "links": [
     {
       "title": "XCP-ng",
@@ -74,6 +75,14 @@
       "asDropdown": true,
       "includeVars": false,
       "keepTime": true
+    },
+    {
+      "title": "xen-mon on GitHub",
+      "type": "link",
+      "url": "https://github.com/mspencerl87/xen-mon",
+      "icon": "info",
+      "tooltip": "Docs, issues and updates",
+      "targetBlank": true
     }
   ],
   "panels": [

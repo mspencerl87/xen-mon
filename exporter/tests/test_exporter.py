@@ -103,3 +103,20 @@ def test_unnamed_pool_uses_master_name():
         assert 'xen_up{pool="xcp-host-1"} 1.0' in _scrape(mgr)
     finally:
         srv.shutdown()
+
+
+def test_clock_skew_is_compensated(monkeypatch):
+    # Pool clock 10 minutes behind the exporter: without compensation `start`
+    # would be in the host's future and rrd_updates would return no rows.
+    monkeypatch.setenv("MOCK_SKEW", "-600")
+    srv = serve(0, ["127.0.0.1", "localhost"])
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        mgr = PoolManager([PoolConfig(url=f"http://127.0.0.1:{srv.server_address[1]}",
+                                      username="root", password="demo")])
+        mgr.poll_once(0)
+        text = _scrape(mgr)
+        assert "xen_host_cpu_avg{" in text and "xen_vm_vcpu_usage{" in text
+        assert "xen_pool_clock_skew_seconds" in text
+    finally:
+        srv.shutdown()

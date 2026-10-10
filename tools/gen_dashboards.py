@@ -6,7 +6,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-OUT = Path(__file__).resolve().parent.parent / "grafana" / "dashboards"
+ROOT = Path(__file__).resolve().parent.parent
+OUT = ROOT / "grafana" / "dashboards"
+# Versions for publishing on grafana.com (datasource chosen at import time)
+GCOM = ROOT / "grafana" / "grafana.com"
+REPO = "https://github.com/mspencerl87/xen-mon"
 DS = {"type": "prometheus", "uid": "prometheus"}
 
 
@@ -130,8 +134,11 @@ class Board:
             "schemaVersion": 39, "version": 1, "graphTooltip": 1, "refresh": "30s",
             "time": {"from": "now-6h", "to": "now"}, "timezone": "browser",
             "templating": {"list": self.vars}, "annotations": {"list": []},
+            "description": "XCP-ng / XenServer monitoring by xen-mon - " + REPO,
             "links": [{"title": "XCP-ng", "type": "dashboards", "tags": ["xen-mon"], "asDropdown": True,
-                       "includeVars": False, "keepTime": True}],
+                       "includeVars": False, "keepTime": True},
+                      {"title": "xen-mon on GitHub", "type": "link", "url": REPO, "icon": "info",
+                       "tooltip": "Docs, issues and updates", "targetBlank": True}],
             "panels": self.panels,
         }
 
@@ -342,9 +349,33 @@ def vm() -> Board:
     return b
 
 
+def for_grafana_com(d: dict) -> dict:
+    """Same dashboard, but asks for a Prometheus datasource on import."""
+    text = json.dumps(d).replace('"uid": "prometheus"', '"uid": "${DS_PROMETHEUS}"')
+    out = json.loads(text)
+    out.pop("id", None)
+    return {
+        "__inputs": [{"name": "DS_PROMETHEUS", "label": "Prometheus", "type": "datasource",
+                      "pluginId": "prometheus", "pluginName": "Prometheus",
+                      "description": "Prometheus that scrapes the xen-mon exporter"}],
+        "__requires": [
+            {"type": "grafana", "id": "grafana", "name": "Grafana", "version": "10.0.0"},
+            {"type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0"},
+            {"type": "panel", "id": "stat", "name": "Stat", "version": ""},
+            {"type": "panel", "id": "bargauge", "name": "Bar gauge", "version": ""},
+            {"type": "panel", "id": "timeseries", "name": "Time series", "version": ""},
+            {"type": "panel", "id": "table", "name": "Table", "version": ""},
+        ],
+        **out,
+    }
+
+
 if __name__ == "__main__":
     OUT.mkdir(parents=True, exist_ok=True)
+    GCOM.mkdir(parents=True, exist_ok=True)
     for board in (overview(), host(), vm()):
+        d = board.json()
         path = OUT / f"{board.uid}.json"
-        path.write_text(json.dumps(board.json(), indent=2) + "\n")
-        print(f"wrote {path.relative_to(OUT.parent.parent)} ({len(board.panels)} panels)")
+        path.write_text(json.dumps(d, indent=2) + "\n")
+        (GCOM / f"{board.uid}.json").write_text(json.dumps(for_grafana_com(d), indent=2) + "\n")
+        print(f"wrote {path.relative_to(ROOT)} + grafana.com copy ({len(board.panels)} panels)")

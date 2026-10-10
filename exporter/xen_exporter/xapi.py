@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import calendar
 import logging
 import ssl
 import time
@@ -129,8 +130,28 @@ class XapiSession:
         return None  # unreachable
 
     # -- rrd -------------------------------------------------------------
-    def rrd_updates(self, host_address: str, window: int = 120) -> str:
-        """Fetch the rrd_updates XML (host + resident VMs) from one host."""
+    def server_time(self, host_ref: str) -> float | None:
+        """Unix time according to a host (used to correct clock skew)."""
+        try:
+            v = self.call("host.get_servertime", host_ref)
+        except Exception as e:  # noqa: BLE001
+            log.debug("host.get_servertime failed: %s", e)
+            return None
+        raw = str(getattr(v, "value", v)).replace("-", "")
+        for fmt in ("%Y%m%dT%H:%M:%SZ", "%Y%m%dT%H:%M:%S"):
+            try:
+                return calendar.timegm(time.strptime(raw, fmt))
+            except ValueError:
+                continue
+        log.debug("unrecognised servertime %r", raw)
+        return None
+
+    def rrd_updates(self, host_address: str, window: int = 300, clock_offset: float = 0.0) -> str:
+        """Fetch the rrd_updates XML (host + resident VMs) from one host.
+
+        ``clock_offset`` (host time - our time) keeps ``start`` inside the host's
+        RRD window even when the exporter's clock is off (common on WSL/VMs).
+        """
         if not self.session_id:
             self.login()
         scheme = urlparse(self.url).scheme or "https"
@@ -138,7 +159,7 @@ class XapiSession:
         netloc = f"{host_address}:{port}" if port else host_address
         params = {
             "session_id": self.session_id,
-            "start": int(time.time()) - window,
+            "start": int(time.time() + clock_offset) - window,
             "cf": "AVERAGE",
             "interval": 5,
             "host": "true",

@@ -96,6 +96,9 @@ class FakePool:
         }
         if method in table:
             return ok(table[method])
+        if method == "host.get_servertime":
+            from xmlrpc.client import DateTime
+            return ok(DateTime(time.gmtime(time.time() + float(os.environ.get("MOCK_SKEW", "0")))))
         return {"Status": "Failure", "ErrorDescription": ["MESSAGE_METHOD_UNKNOWN", method]}
 
     # -- RRD -------------------------------------------------------------
@@ -153,8 +156,8 @@ class FakePool:
                 (f"{vk}vbd_xvda_write_latency", lambda t, vs=vs: self._wave(vs + 6, t, 100, 6000)),
                 (f"{vk}vbd_xvda_iops_total", lambda t, vs=vs: self._wave(vs + 7, t, 5, 900)),
             ]
-        now = int(time.time()) // 5 * 5
-        start = max(start, now - 300)
+        now = int(time.time() + float(os.environ.get("MOCK_SKEW", "0"))) // 5 * 5
+        start = max(start, now - 600)
         times = list(range(now, start - 1, -5))
         legend = "".join(f"<entry>{n}</entry>" for n, _ in cols)
         rows = "".join("<row><t>%d</t>%s</row>" % (t, "".join(f"<v>{f(t):.6E}</v>" for _, f in cols))

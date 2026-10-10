@@ -83,10 +83,17 @@ docker compose up -d --build
 
 ### Troubleshooting
 
+Start with the built-in check. It logs in to each pool, measures clock skew and fetches performance data from every host:
+
+```bash
+docker compose exec exporter python -m xen_exporter.diagnose
+```
+
 | Symptom | Cause / fix |
 |---|---|
 | Every panel says *No data* and *Pools reachable* is 0 | The exporter isn't running. Check `docker compose logs exporter`. "No pools configured" means `config/config.yml` is missing. |
 | *Pools down* is 1 | The exporter can't log in. Check the IP, username and password, and whether the Docker host can reach the master on 443. |
+| Memory, VM counts and SR usage work, but CPU, network, disk and SR I/O are *No data* everywhere | Often the exporter's clock is ahead of the hosts' clocks, so it asks them for data "from the future" (common on WSL2 or VMs after sleep). Since v0.2 this is compensated automatically and logged as `clock skew`. Fix NTP on both sides anyway. |
 | A host shows Memory/VMs but CPU and Load are *No data*, and the Host page shows *Performance data: FAILING* | The exporter can reach the master but not that host's `/rrd_updates`. The log line `rrd_updates from <host> failed` gives the reason. Fix routing, or map the host to a reachable address with `host_overrides`. |
 | The Pool picker shows a URL instead of a name | The pool has no name in XCP-ng. Set one in XO, or set `name:` in `config.yml`. |
 
@@ -151,6 +158,10 @@ All metrics are prefixed `xen_` and labelled with `pool`, plus `host`/`host_uuid
 | VM RRD | `xen_vm_vcpu_usage{vcpu}`, `xen_vm_memory`, `xen_vm_memory_internal_free` (KiB, needs guest tools), `xen_vm_vif_{rx,tx}_bytes{vif}`, `xen_vm_vbd_{read,write}_bytes{device}`, `xen_vm_vbd_{read,write}_latency` (µs) |
 
 Any other RRD data source is exported as `xen_host_<name>` or `xen_vm_<name>`, so nothing is dropped. Units follow XAPI: CPU is a 0–1 fraction, network and disk are bytes/s, SR throughput is MiB/s, and SR latency is in ms.
+
+### Using only the dashboards
+
+Already running Prometheus? Run just the exporter, add a scrape job for `<exporter>:9890`, and import the dashboards from [`grafana/grafana.com/`](grafana/grafana.com). Those copies ask which Prometheus datasource to use when you import them.
 
 ## Development
 

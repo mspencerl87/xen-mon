@@ -21,7 +21,7 @@ jobs:
       - run: pip install -r exporter/requirements.txt pytest
       - run: cd exporter && python -m pytest -q tests
       - name: Dashboards are up to date
-        run: python tools/gen_dashboards.py && git diff --exit-code grafana/dashboards
+        run: python tools/gen_dashboards.py && git diff --exit-code grafana/dashboards grafana/grafana.com
       - name: Validate Prometheus rules
         run: |
           docker run --rm -v "$PWD/prometheus:/etc/prometheus:ro" --entrypoint promtool \

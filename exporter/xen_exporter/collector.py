@@ -71,6 +71,15 @@ class PoolPoller:
                      or urlparse(self.session.url).hostname or self.cfg.url)
         self.label = pool_name
 
+        # Hosts reject/return nothing for a ``start`` in their future, so measure skew.
+        offset = 0.0
+        st = s.server_time(pool_rec.get("master"))
+        if st is not None:
+            offset = st - time.time()
+            if abs(offset) > 30:
+                log.warning("[%s] clock skew of %+.0fs between this machine and the pool master; "
+                            "compensating (consider fixing NTP)", pool_name, offset)
+
         host_metrics = s.call("host_metrics.get_all_records")
         vms = self._vms()
         srs = s.call("SR.get_all_records")
@@ -79,6 +88,7 @@ class PoolPoller:
         P = {"pool": pool_name}
 
         master_name = hosts.get(pool_rec.get("master"), {}).get("name_label", "")
+        out.append(("pool_clock_skew_seconds", P, offset))
         out.append(("pool_info", {**P, "pool_uuid": pool_rec.get("uuid", ""),
                                   "master": master_name}, 1))
 
@@ -140,7 +150,7 @@ class PoolPoller:
                     or h.get("address"))
             t0 = time.monotonic()
             try:
-                body = s.rrd_updates(addr)
+                body = s.rrd_updates(addr, clock_offset=offset)
             except Exception as e:  # noqa: BLE001
                 log.warning("[%s] rrd_updates from %s (%s) failed: %s", pool_name, name, addr, e)
                 return name, h["uuid"], None, time.monotonic() - t0
@@ -162,7 +172,7 @@ class PoolPoller:
         with ThreadPoolExecutor(max_workers=min(self.rrd_workers, max(1, len(live_hosts)))) as ex:
             for hname, huuid, samples, dur in ex.map(fetch, live_hosts):
                 hl = {**P, "host": hname, "host_uuid": huuid}
-                out.append(("host_rrd_up", hl, 0 if samples is None else 1))
+                out.append(("host_rrd_up", hl, 1 if samples else 0))
                 out.append(("host_rrd_duration_seconds", hl, dur))
                 for smp in samples or []:
                     key = (smp.obj_type, smp.obj_uuid, smp.name)
